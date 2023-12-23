@@ -1,25 +1,50 @@
-
+const path = require('path');
 const express = require('express');
 const exphbs = require('express-handlebars');
 const session = require('express-session');
 const routes = require('./controllers');
+const sequelize = require('./conifg/connection');
+const SequelizeStore = require('connect-session-sequelize')(session.Store);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Set up Handlebars
-app.engine('handlebars', exphbs({ defaultLayout: 'main' }));
+const sess = {
+	secret: 'Super secret secret',
+	cookie: {},
+	resave: false,
+	saveUninitialized: true,
+	store: new SequelizeStore({
+		db: sequelize,
+	}),
+};
+
+app.use(session(sess));
+
+const hbs = exphbs.create({});
+
+// Configure Handlebars as the template engine
+app.engine('handlebars', hbs.engine);
+app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'handlebars');
 
-app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-
-app.use(express.static('public'));
-
-app.get('/', (req, res) => {
-  res.render('main');
+app.use(express.urlencoded({ extended: true }));
+app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use((req, res, next) => {
+	res.locals.loggedIn = req.session.loggedIn;
+	next();
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use((req, res, next) => {
+  res.locals.loggedIn = req.session.loggedIn;
+  next();
+});
+
+// Synchronize the model with the database
+sequelize.sync({ force: false }).then(() => {
+	app.listen(PORT, () =>
+		console.log(`Server is running on port http://localhost:${PORT}`)
+	);
 });
